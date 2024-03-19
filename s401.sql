@@ -28,6 +28,7 @@ track2 VARCHAR(50),
 expiring_date VARCHAR (20) #usamos varchar para que no de error en el DATE
 );
 
+/*
 CREATE TABLE IF NOT EXISTS products(
 id VARCHAR(50) PRIMARY KEY,
 product_name VARCHAR(50),
@@ -36,7 +37,7 @@ colour VARCHAR(50),
 weight VARCHAR(50),
 warehouse_id VARCHAR(50)
 );
-
+*/
 
 #importaremos las tres tablas de usuarios aqui
 
@@ -68,8 +69,7 @@ user_id VARCHAR(50),
 lat VARCHAR(50),
 longitude VARCHAR(50),
 FOREIGN KEY(card_id) REFERENCES credit_cards (id),
-FOREIGN KEY (business_id) REFERENCES companies (company_id),
-FOREIGN KEY (product_ids) REFERENCES products (id),  
+FOREIGN KEY (business_id) REFERENCES companies (company_id), 
 FOREIGN KEY (user_id) REFERENCES users (id)   
 );
 
@@ -79,6 +79,10 @@ SELECT * FROM products;
 SELECT * FROM transactions;
 SELECT * FROM users;
 
+
+SELECT * FROM transactions
+where business_id = 'b-2242';
+
 #EJ1
 
 SELECT user_id, transaction_count
@@ -87,53 +91,63 @@ FROM (
     FROM transactions
     GROUP BY user_id
     ) AS user_transactions
-    WHERE transaction_count > 5;
+    WHERE transaction_count > 30;
 
 #EJ2 
 
-SELECT transactions.business_id
-FROM transactions 
-JOIN companies
-ON transactions.business_id = companies.company_id
-WHERE transactions.business_id = "b-22422"
-group by transactions.business_id;
-
-SELECT Iban, Avg(total_amount)
-from (
-	SELECT credit_cards.Iban, SUM(transactions.amount) AS total_amount
-    FROM credit_cards
-    JOIN transactions ON credit_cards.id = transactions.card_id
-    JOIN companies ON transactions.business_id = companies.company_id
-    WHERE transactions.declined = '0' AND companies.company_name = 'Donec Ltd'
-    GROUP BY credit_cards.Iban ) AS transaction_totals
-group by Iban;
-
-
-
-SELECT credit_cards.Iban, SUM(transactions.amount) AS total_amount
-    FROM credit_cards
-    JOIN transactions ON credit_cards.id = transactions.card_id
-    JOIN companies ON transactions.business_id = companies.company_id
-    WHERE Companies.company_name = 'Donec Ltd'
-    GROUP BY credit_cards.Iban;
-    
-    SELECT * FROM transactions
-    where companies.company_name = "Donec Ltd";
-
-
-SELECT business_id, COUNT(card_id) AS card_count
-FROM transactions
+SELECT Iban, Avg(amount) AS AVG_AMOUNT
+FROM credit_cards
+JOIN transactions ON credit_cards.id = transactions.card_id
 JOIN companies ON transactions.business_id = companies.company_id
-where company_name LIKE 'Donec Ltd%'
-GROUP BY business_id;
+WHERE companies.company_name = 'Donec Ltd'
+GROUP BY credit_cards.Iban;
 
+#micas version 
+
+SELECT t.business_id, cc.iban, avg(t.amount) AS mitjana_trans
+FROM transactions AS t
+JOIN credit_cards AS cc
+ON t.card_id=cc.id
+JOIN companies AS c 
+ON c.company_id = t.business_id
+WHERE company_name LIKE 'Donec Ltd%' 
+GROUP BY t.business_id, cc.iban;
 
 #NIVEL 2
 
-
+SELECT * FROM credit_cards_status;
+SELECT * FROM credit_cards;
+SELECT * FROM transactions;
 
 #EJ 1
 
+CREATE TABLE credit_cards_status (
+    credit_card_id VARCHAR(40),
+    iban VARCHAR(40),
+    card_status ENUM('active', 'inactive'),
+    FOREIGN KEY(credit_card_id) REFERENCES credit_cards (id)
+    );
+    
+    
+    
+INSERT INTO credit_cards_status (card_status)
+SELECT CASE 
+         WHEN SUM(CASE WHEN transactions.declined = 'true' THEN 1 ELSE 0 END) = 3 
+         THEN 'inactive'
+         ELSE 'active'
+      END AS card_status
+FROM credit_cards
+LEFT JOIN (
+    SELECT card_id, MAX(declined) AS declined
+    FROM (
+        SELECT card_id, declined
+        FROM transactions
+        ORDER BY timestamp DESC
+    ) AS recent_transactions
+    GROUP BY card_id
+    LIMIT 3
+) AS transactions ON credit_cards.id = transactions.card_id
+GROUP BY credit_cards.id 
 
 
 
