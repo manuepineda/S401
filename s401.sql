@@ -127,28 +127,36 @@ CREATE TABLE credit_cards_status (
     card_status ENUM('active', 'inactive'),
     FOREIGN KEY(credit_card_id) REFERENCES credit_cards (id)
     );
-    
-    
-    
-INSERT INTO credit_cards_status (card_status)
-SELECT CASE 
-         WHEN SUM(CASE WHEN transactions.declined = 'true' THEN 1 ELSE 0 END) = 3 
-         THEN 'inactive'
-         ELSE 'active'
-      END AS card_status
-FROM credit_cards
-LEFT JOIN (
-    SELECT card_id, MAX(declined) AS declined
-    FROM (
-        SELECT card_id, declined
-        FROM transactions
-        ORDER BY timestamp DESC
-    ) AS recent_transactions
-    GROUP BY card_id
-    LIMIT 3
-) AS transactions ON credit_cards.id = transactions.card_id
-GROUP BY credit_cards.id 
+ 
+ 
+Select card_id, timestamp, declined, 
+CASE
+	WHEN RANK() OVER(partition by card_id ORDER BY timestamp) >= 3 AND SUM(declined) OVER(PARTITION BY card_id) = 3 THEN 'inactive'
+    ELSE 'active'
+    END as card_status
+from transactions
+JOIN credit_cards
+ON credit_cards.id = transactions.card_id
+Join credit_cards_status
+ON credit_cards.id = credit_cards_status.credit_card_id
+group by card_id, timestamp, declined
+order by card_id, timestamp DESC;
 
 
+
+Insert into credit_cards_status (credit_card_id, iban, card_status)
+(Select card_id,
+CASE
+	WHEN RANK() OVER(partition by card_id ORDER BY timestamp) >= 3 AND SUM(declined) OVER(PARTITION BY card_id) = 3 THEN 'inactive'
+    ELSE 'active'
+    END as card_status
+from transactions
+JOIN credit_cards
+ON credit_cards.id = transactions.card_id
+Join credit_cards_status
+ON credit_cards.id = credit_cards_status.credit_card_id
+where card_id = credit_card_id
+group by card_id, timestamp, declined
+order by card_id, timestamp DESC);
 
 
